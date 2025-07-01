@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, signOut, User, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
@@ -14,6 +14,7 @@ interface AuthContextType {
   loading: boolean;
   loginWithEmail: (email: string, password: string) => Promise<any>;
   loginWithGoogle: () => Promise<any>;
+  sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -93,6 +94,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     return signInWithPopup(auth, provider);
   }
+  
+  const sendPasswordReset = (email: string) => {
+    if (!auth) return Promise.reject("Firebase not configured");
+    return sendPasswordResetEmail(auth, email);
+  };
 
   const logout = async () => {
     setUser(null);
@@ -105,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithEmail, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithEmail, loginWithGoogle, sendPasswordReset, logout }}>
       {children}
     </AuthContext.Provider>
   );

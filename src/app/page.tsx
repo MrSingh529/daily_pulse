@@ -8,10 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Activity } from "lucide-react";
+import { Activity, AlertCircle } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
 
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -27,12 +26,14 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loginWithEmail, loginWithGoogle, loading } = useAuth();
+  const { user, loginWithEmail, loginWithGoogle, sendPasswordReset, loading } = useAuth();
   const { toast } = useToast();
   
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const [isResetView, setIsResetView] = React.useState(false);
+
 
   React.useEffect(() => {
     if (!loading && user) {
@@ -64,6 +65,27 @@ export default function LoginPage() {
        setError('Failed to sign in with Google. Please try again.');
     }
   };
+  
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!email) {
+      setError('Please enter your email address.');
+      return;
+    }
+    try {
+      await sendPasswordReset(email);
+      toast({
+        title: 'Password Reset Email Sent',
+        description: 'If an account exists, a reset link has been sent to your email.',
+      });
+      setIsResetView(false);
+    } catch (err: any) {
+      console.error(err);
+      setError('Failed to send password reset email. Please try again.');
+    }
+  };
+
 
   if (loading || user) {
     return (
@@ -79,54 +101,103 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="flex justify-center items-center mb-4">
-            <Activity className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Daily Pulse</CardTitle>
-          <CardDescription>Enter your credentials to access your account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="manager@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        {isResetView ? (
+          <>
+            <CardHeader className="text-center">
+              <div className="flex justify-center items-center mb-4">
+                <Activity className="h-8 w-8 text-primary" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+              <CardDescription>Enter your email to receive a reset link.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handlePasswordReset}>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email-reset">Email</Label>
+                    <Input id="email-reset" type="email" placeholder="manager@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
+                    Send Reset Link
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+            <CardFooter className="justify-center">
+               <Button variant="link" size="sm" onClick={() => { setIsResetView(false); setError(''); }}>
+                 Back to login
+               </Button>
+            </CardFooter>
+          </>
+        ) : (
+          <>
+            <CardHeader className="text-center">
+              <div className="flex justify-center items-center mb-4">
+                <Activity className="h-8 w-8 text-primary" />
               </div>
-               {error && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Login Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                Sign In
+              <CardTitle className="text-2xl font-bold">Daily Pulse</CardTitle>
+              <CardDescription>Enter your credentials to access your account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleLogin}>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" placeholder="manager@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                       <Label htmlFor="password">Password</Label>
+                       <Button
+                          type="button"
+                          variant="link"
+                          className="p-0 h-auto text-sm"
+                          onClick={() => { setIsResetView(true); setError(''); }}
+                        >
+                          Forgot password?
+                        </Button>
+                    </div>
+                    <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  </div>
+                   {error && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Login Error</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
+                    Sign In
+                  </Button>
+                </div>
+              </form>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleGoogleLogin}>
+                <GoogleIcon className="mr-2 h-4 w-4" />
+                Sign in with Google
               </Button>
-            </div>
-          </form>
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-          <Button variant="outline" className="w-full" onClick={handleGoogleLogin}>
-            <GoogleIcon className="mr-2 h-4 w-4" />
-            Sign in with Google
-          </Button>
-        </CardContent>
-        <CardFooter>
-          <p className="text-xs text-muted-foreground text-center w-full">By signing in, you agree to our Terms of Service.</p>
-        </CardFooter>
+            </CardContent>
+            <CardFooter>
+              <p className="text-xs text-muted-foreground text-center w-full">By signing in, you agree to our Terms of Service.</p>
+            </CardFooter>
+          </>
+        )}
       </Card>
     </div>
   );
