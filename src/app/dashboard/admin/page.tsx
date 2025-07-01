@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -138,7 +137,12 @@ export default function AdminPage() {
   };
 
   const handleSavePermissions = async (uid: string, permissions: Partial<UserPermissions>) => {
-    await handleUserUpdate(uid, { permissions });
+    const allPermissionKeys = Object.keys(permissionLabels) as (keyof UserPermissions)[];
+    const fullPermissions: Partial<UserPermissions> = {};
+    for (const key of allPermissionKeys) {
+        fullPermissions[key] = permissions[key] || false;
+    }
+    await handleUserUpdate(uid, { permissions: fullPermissions });
     setEditingUser(null);
   };
 
