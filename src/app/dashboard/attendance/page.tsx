@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -76,10 +77,11 @@ export default function AttendancePage() {
         let usersQuery;
         if (user.role === 'Admin' || user.reportVisibility === 'All') {
              usersQuery = query(collection(db, 'users'), where('role', 'in', ['ASM', 'RSM']));
-        } else if (user.reportVisibility === 'Region') {
-             usersQuery = query(collection(db, 'users'), where('region', '==', user.region), where('role', 'in', ['ASM', 'RSM']));
+        } else if (user.reportVisibility === 'Region' && user.regions && user.regions.length > 0) {
+            // Can see users who are in any of the manager's regions.
+             usersQuery = query(collection(db, 'users'), where('regions', 'array-contains-any', user.regions), where('role', 'in', ['ASM', 'RSM']));
         } else {
-            // For 'Own' visibility, we only need the current user's profile, which we already have.
+            // For 'Own' visibility, or if region manager has no regions assigned.
             setAllUsers([user]);
             usersLoaded = true; checkLoading();
             return () => { unsubReports() };
@@ -87,7 +89,15 @@ export default function AttendancePage() {
         
         const unsubUsers = onSnapshot(usersQuery, snap => {
             const usersData = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
+            // Additional client-side filtering if 'array-contains-any' is not precise enough (e.g. user in N, manager in [N,S])
+            // This is actually not needed as firestore `array-contains-any` does what we need.
             setAllUsers(usersData);
+            usersLoaded = true; checkLoading();
+        }, (error) => {
+            console.error("Error fetching users for attendance:", error);
+            // This can happen if firestore indexes are not created. 
+            // The console will provide a link to create them.
+            setAllUsers([]);
             usersLoaded = true; checkLoading();
         });
         
@@ -100,7 +110,8 @@ export default function AttendancePage() {
             return allUsers;
         }
         if (user.reportVisibility === 'Region') {
-            return allUsers.filter(u => u.region === user.region);
+            // We already filtered by Firestore query, but a double check doesn't hurt.
+            return allUsers.filter(u => u.regions && u.regions.length > 0 && u.regions.some(r => user.regions?.includes(r)));
         }
         return [user];
     }, [user, allUsers]);
@@ -211,7 +222,7 @@ export default function AttendancePage() {
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-900">{selectedUser.name}</h3>
                                         <p className="text-gray-600 font-medium">{selectedUser.role}</p>
-                                        <p className="text-sm text-gray-500">{selectedUser.region}</p>
+                                        <p className="text-sm text-gray-500">{selectedUser.regions?.join(', ')}</p>
                                     </div>
                                 </div>
 

@@ -71,8 +71,8 @@ export default function PJPPlansPage() {
 
     if (user.reportVisibility === 'Own') {
       plansToShow = plansToShow.filter(p => p.userId === user.uid);
-    } else if (user.reportVisibility === 'Region') {
-      plansToShow = plansToShow.filter(p => p.userRegion === user.region);
+    } else if (user.reportVisibility === 'Region' && user.regions) {
+      plansToShow = plansToShow.filter(p => p.userRegion && user.regions?.includes(p.userRegion));
     }
 
     return plansToShow.filter(plan => {

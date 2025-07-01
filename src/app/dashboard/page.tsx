@@ -167,21 +167,24 @@ export default function DashboardPage() {
     const submittedTodayUserIds = new Set(todaysReports.map(r => r.submittedBy));
 
     const usersByRegion = users.reduce((acc, user) => {
-        const region = user.region || 'HQ';
-        if (!acc[region]) {
-            acc[region] = [];
-        }
-        acc[region].push(user);
+        (user.regions || ['HQ']).forEach(region => {
+            if (!acc[region]) {
+                acc[region] = [];
+            }
+            acc[region].push(user);
+        });
         return acc;
     }, {} as Record<Region, UserProfile[]>);
 
+
     const submissionStatus = Object.entries(usersByRegion).map(([region, regionUsers]) => {
-        const submittedCount = regionUsers.filter(u => submittedTodayUserIds.has(u.uid)).length;
+        const uniqueUsers = Array.from(new Set(regionUsers.map(u => u.uid))).map(uid => regionUsers.find(u => u.uid === uid)!);
+        const submittedCount = uniqueUsers.filter(u => submittedTodayUserIds.has(u.uid)).length;
         return {
             region,
-            users: regionUsers,
+            users: uniqueUsers,
             submittedCount,
-            totalCount: regionUsers.length,
+            totalCount: uniqueUsers.length,
         };
     }).sort((a,b) => a.region.localeCompare(b.region));
 

@@ -86,8 +86,8 @@ export default function ReportsPage() {
     // First, filter by visibility rules based on the logged-in user's profile
     if (user.reportVisibility === 'Own') {
       reportsToShow = reports.filter(r => r.submittedBy === user.uid);
-    } else if (user.reportVisibility === 'Region') {
-      reportsToShow = reports.filter(r => r.submittedByRegion === user.region);
+    } else if (user.reportVisibility === 'Region' && user.regions) {
+      reportsToShow = reports.filter(r => r.submittedByRegion && user.regions?.includes(r.submittedByRegion));
     }
     // If 'All', no initial filter is applied, they see everything.
 

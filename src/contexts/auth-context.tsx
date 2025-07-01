@@ -68,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: firebaseUser.email || '',
             name: firebaseUser.displayName || 'New User',
             role: 'User', // Default role
+            regions: ['HQ'],
             reportVisibility: 'Own' // Default visibility
           };
           await setDoc(userDocRef, newUserProfile);

@@ -22,7 +22,7 @@ export interface UserProfile {
   role: UserRole;
   name: string;
   photoURL?: string;
-  region?: Region;
+  regions?: Region[];
   reportVisibility?: ReportVisibility;
   permissions?: Partial<UserPermissions>;
 }

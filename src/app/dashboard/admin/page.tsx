@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -31,6 +32,67 @@ const permissionLabels: Record<keyof UserPermissions, string> = {
   doRaEntry: 'RA Entry',
   manageUsers: 'Manage Users',
 };
+
+function RegionsDialog({
+  user,
+  isOpen,
+  onClose,
+  onSave,
+}: {
+  user: UserProfile | null,
+  isOpen: boolean,
+  onClose: () => void,
+  onSave: (uid: string, regions: Region[]) => void,
+}) {
+  const [selectedRegions, setSelectedRegions] = React.useState<Region[]>([]);
+
+  React.useEffect(() => {
+    if (user?.regions) {
+      setSelectedRegions(user.regions);
+    } else {
+      setSelectedRegions([]);
+    }
+  }, [user]);
+
+  const handleRegionChange = (region: Region, checked: boolean) => {
+    setSelectedRegions(prev => 
+      checked ? [...prev, region] : prev.filter(r => r !== region)
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Manage Regions for {user.name}</DialogTitle>
+          <DialogDescription>
+            Assign one or more regions to this user.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4 py-4">
+          {regions.map((region) => (
+            <div className="flex items-center space-x-2" key={region}>
+              <Checkbox
+                id={`region-${region}`}
+                checked={selectedRegions.includes(region)}
+                onCheckedChange={(checked) => handleRegionChange(region, !!checked)}
+              />
+              <Label htmlFor={`region-${region}`} className="text-sm font-medium">
+                {region}
+              </Label>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(user.uid, selectedRegions)}>Save Regions</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function PermissionsDialog({
   user,
@@ -96,7 +158,8 @@ export default function AdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = React.useState<UserProfile[]>([]);
-  const [editingUser, setEditingUser] = React.useState<UserProfile | null>(null);
+  const [editingPermissionsForUser, setEditingPermissionsForUser] = React.useState<UserProfile | null>(null);
+  const [editingRegionsForUser, setEditingRegionsForUser] = React.useState<UserProfile | null>(null);
 
   React.useEffect(() => {
     if (!loading && user?.role !== 'Admin') {
@@ -143,7 +206,12 @@ export default function AdminPage() {
         fullPermissions[key] = permissions[key] || false;
     }
     await handleUserUpdate(uid, { permissions: fullPermissions });
-    setEditingUser(null);
+    setEditingPermissionsForUser(null);
+  };
+  
+  const handleSaveRegions = async (uid: string, regions: Region[]) => {
+    await handleUserUpdate(uid, { regions });
+    setEditingRegionsForUser(null);
   };
 
   const handleNameChange = (uid: string, name: string) => {
@@ -161,10 +229,6 @@ export default function AdminPage() {
   
   const handleRoleChange = (uid: string, role: string) => {
     handleUserUpdate(uid, { role: role as UserProfile['role'] });
-  };
-  
-  const handleRegionChange = (uid: string, region: string) => {
-    handleUserUpdate(uid, { region: region as Region });
   };
   
   const handleVisibilityChange = (uid: string, visibility: string) => {
@@ -189,7 +253,7 @@ export default function AdminPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Region</TableHead>
+                <TableHead>Region(s)</TableHead>
                 <TableHead>Report Visibility</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -231,14 +295,20 @@ export default function AdminPage() {
                     )}
                   </TableCell>
                    <TableCell>
-                      <Select defaultValue={u.region} onValueChange={(value) => handleRegionChange(u.uid, value)}>
-                        <SelectTrigger className="w-[120px]">
-                          <SelectValue placeholder="Select region" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {regions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <span className="max-w-[150px] truncate">
+                          {u.regions?.join(', ') || 'N/A'}
+                        </span>
+                         <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setEditingRegionsForUser(u)}
+                            disabled={user?.uid === u.uid}
+                            className="h-7"
+                          >
+                            Manage
+                          </Button>
+                      </div>
                   </TableCell>
                    <TableCell>
                     {user?.uid === u.uid ? (
@@ -258,10 +328,10 @@ export default function AdminPage() {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => setEditingUser(u)}
+                        onClick={() => setEditingPermissionsForUser(u)}
                         disabled={user?.uid === u.uid}
                       >
-                        Manage
+                        Permissions
                       </Button>
                   </TableCell>
                 </TableRow>
@@ -271,10 +341,16 @@ export default function AdminPage() {
         </CardContent>
       </Card>
       <PermissionsDialog 
-        user={editingUser}
-        isOpen={!!editingUser}
-        onClose={() => setEditingUser(null)}
+        user={editingPermissionsForUser}
+        isOpen={!!editingPermissionsForUser}
+        onClose={() => setEditingPermissionsForUser(null)}
         onSave={handleSavePermissions}
+      />
+      <RegionsDialog
+        user={editingRegionsForUser}
+        isOpen={!!editingRegionsForUser}
+        onClose={() => setEditingRegionsForUser(null)}
+        onSave={handleSaveRegions}
       />
     </>
   );

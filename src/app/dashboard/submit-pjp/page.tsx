@@ -21,9 +21,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import type { PJP } from '@/lib/types';
+import type { PJP, Region } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const regions: Region[] = ['North', 'South', 'East', 'West', 'HQ'];
 
 const pjpFormSchema = z.object({
+  region: z.enum(regions, { required_error: "You must select a region for this plan." }),
   plans: z.array(
     z.object({
       planDate: z.date({ required_error: "A date is required." }),
@@ -52,6 +56,13 @@ export default function SubmitPJPPage() {
     control: form.control,
     name: "plans",
   });
+  
+  React.useEffect(() => {
+    if (user?.regions?.length === 1) {
+      form.setValue('region', user.regions[0]);
+    }
+  }, [user, form]);
+
 
   async function onSubmit(data: PJPFormValues) {
     if (!user) {
@@ -66,7 +77,7 @@ export default function SubmitPJPPage() {
             planDate: Timestamp.fromDate(plan.planDate),
             userId: user.uid,
             userName: user.name!,
-            userRegion: user.region || 'HQ',
+            userRegion: data.region,
             createdAt: Timestamp.now(),
         };
         return addDoc(collection(db, "pjp_plans"), newPJPData);
@@ -78,7 +89,9 @@ export default function SubmitPJPPage() {
           title: "PJP Submitted!",
           description: "Your plan has been successfully submitted.",
       });
-      form.reset();
+      form.reset({
+        plans: [{ planDate: new Date(), scName: "", remarks: "" }]
+      });
       router.push('/dashboard/pjp');
     } catch (error) {
         console.error("Error submitting PJP:", error);
@@ -96,11 +109,35 @@ export default function SubmitPJPPage() {
     <Card>
       <CardHeader>
         <CardTitle>Submit Personal Journey Plan (PJP)</CardTitle>
-        <CardDescription>Add your planned visits for the upcoming days, weeks, or month.</CardDescription>
+        <CardDescription>Add your planned visits. If you manage multiple regions, select the correct region for this set of plans.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            
+            {user?.regions && user.regions.length > 1 && (
+                 <FormField
+                    control={form.control}
+                    name="region"
+                    render={({ field }) => (
+                        <FormItem className="max-w-xs">
+                        <FormLabel>Region for this Plan</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a region" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {user.regions?.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+            
             <div className="space-y-4">
               {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-1 md:grid-cols-7 gap-4 items-start p-4 border rounded-lg relative">

@@ -21,11 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import type { Report } from '@/lib/types';
+import type { Report, Region } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const regions: Region[] = ['North', 'South', 'East', 'West', 'HQ'];
 
 const reportFormSchema = z.object({
   date: z.date({ required_error: "A date for the report is required." }),
+  region: z.enum(regions, { required_error: "Region is required." }),
   ascName: z.string().min(2, { message: "ASC Name must be at least 2 characters." }),
   outstandingAmount: z.coerce.number().min(0, "Amount must be a positive number."),
   oowCollection: z.coerce.number().min(0, "Amount must be a positive number."),
@@ -64,6 +67,12 @@ export default function SubmitReportPage() {
     defaultValues,
   });
 
+  React.useEffect(() => {
+    if (user?.regions?.length === 1) {
+      form.setValue('region', user.regions[0]);
+    }
+  }, [user, form]);
+
   async function onSubmit(data: ReportFormValues) {
     if (!user) {
         toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to submit a report." });
@@ -71,7 +80,7 @@ export default function SubmitReportPage() {
     }
     setIsSubmitting(true);
     try {
-        const { remarks, ...restOfData } = data;
+        const { remarks, region, ...restOfData } = data;
 
         const newReportData: Omit<Report, 'id'> = {
             ...restOfData,
@@ -79,7 +88,7 @@ export default function SubmitReportPage() {
             submittedBy: user.uid,
             submittedByName: user.name!,
             submittedByRole: user.role!,
-            submittedByRegion: user.region || 'HQ',
+            submittedByRegion: region,
             remarks: [],
         };
 
@@ -121,7 +130,7 @@ export default function SubmitReportPage() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-3 gap-8">
               <FormField
                 control={form.control}
                 name="date"
@@ -157,7 +166,7 @@ export default function SubmitReportPage() {
                   </FormItem>
                 )}
               />
-              <FormField
+               <FormField
                 control={form.control}
                 name="ascName"
                 render={({ field }) => (
@@ -170,6 +179,31 @@ export default function SubmitReportPage() {
                   </FormItem>
                 )}
               />
+              {user?.regions && user.regions.length > 1 && (
+                <FormField
+                    control={form.control}
+                    name="region"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Region</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a region" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {user.regions?.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <FormDescription>
+                            Select the region this report is for.
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+              )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-8">

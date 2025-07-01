@@ -99,7 +99,7 @@ export default function AnalysisPage() {
 
     let targetUserIds: string[] = [];
     if (filterType === 'region' && selectedRegion !== 'All') {
-        targetUserIds = allUsers.filter(u => u.region === selectedRegion).map(u => u.uid);
+        targetUserIds = allUsers.filter(u => u.regions?.includes(selectedRegion as Region)).map(u => u.uid);
     } else if (filterType === 'user' && selectedUser !== 'All') {
         targetUserIds = [selectedUser];
     }
@@ -194,7 +194,7 @@ export default function AnalysisPage() {
                     </Avatar>
                     <div>
                         <h3 className="text-xl font-bold">{profile.name}</h3>
-                        <p className="text-muted-foreground">{profile.role} - {profile.region}</p>
+                        <p className="text-muted-foreground">{profile.role} - {profile.regions?.join(', ')}</p>
                     </div>
                 </CardContent>
             </Card>
