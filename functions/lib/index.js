@@ -39,8 +39,9 @@ const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
 const db = admin.firestore();
 const fcm = admin.messaging();
-exports.onReportSubmitted = functions.region('asia-south1').firestore
-    .document("reports/{reportId}")
+exports.onReportSubmitted = functions
+    .region("asia-south1")
+    .firestore.document("reports/{reportId}")
     .onCreate(async (snapshot, context) => {
     const report = snapshot.data();
     if (!report) {
@@ -51,26 +52,27 @@ exports.onReportSubmitted = functions.region('asia-south1').firestore
     const ascName = report.ascName || "a location";
     const reportId = context.params.reportId;
     const submittedByRegion = report.submittedByRegion;
-    // A map to hold unique users to notify, preventing duplicate notifications.
     const recipients = new Map();
-    // 1. Get all Admins
     try {
-        const adminSnapshot = await db.collection("users").where("role", "==", "Admin").get();
-        adminSnapshot.forEach(doc => {
+        const adminSnapshot = await db
+            .collection("users")
+            .where("role", "==", "Admin")
+            .get();
+        adminSnapshot.forEach((doc) => {
             recipients.set(doc.id, doc.data());
         });
     }
     catch (e) {
         functions.logger.error("Failed to query for Admins", e);
     }
-    // 2. Get all RSMs in the report's region (if a region is specified)
     if (submittedByRegion) {
         try {
-            const rsmSnapshot = await db.collection("users")
+            const rsmSnapshot = await db
+                .collection("users")
                 .where("role", "==", "RSM")
                 .where("regions", "array-contains", submittedByRegion)
                 .get();
-            rsmSnapshot.forEach(doc => {
+            rsmSnapshot.forEach((doc) => {
                 recipients.set(doc.id, doc.data());
             });
         }
@@ -87,42 +89,41 @@ exports.onReportSubmitted = functions.region('asia-south1').firestore
     }
     const tokens = [];
     recipients.forEach((user, uid) => {
-        // Don't notify the person who submitted the report
         if (uid === report.submittedBy) {
             return;
         }
-        // Collect all their FCM tokens
         if (user.fcmTokens && Array.isArray(user.fcmTokens)) {
             tokens.push(...user.fcmTokens);
         }
     });
-    // Remove duplicate tokens, if any user has the same token registered multiple times
     const uniqueTokens = [...new Set(tokens)];
     if (uniqueTokens.length === 0) {
         functions.logger.log("No FCM tokens found for any recipients.");
         return null;
     }
-    const payload = {
+    const message = {
         notification: {
             title: "New Report Submitted!",
             body: `${submittedByName} just submitted a report for ${ascName}. Tap to view.`,
-            icon: "/icons/icon-192x192.png",
         },
-        data: {
-            url: `/dashboard/reports?view=${reportId}`,
+        webpush: {
+            notification: {
+                icon: "https://dailypulservs.vercel.app/icons/icon-192x192.png",
+            },
+            fcmOptions: {
+                link: `https://dailypulservs.vercel.app/dashboard/reports?view=${reportId}`,
+            },
         },
+        tokens: uniqueTokens,
     };
     functions.logger.log(`Sending notification to ${uniqueTokens.length} tokens.`);
-    const response = await fcm.sendEachForMulticast({
-        tokens: uniqueTokens,
-        notification: payload.notification,
-        data: payload.data,
-    });
+    const response = await fcm.sendEachForMulticast(message);
     if (response.failureCount > 0) {
         const failedTokens = [];
         response.responses.forEach((resp, idx) => {
             if (!resp.success) {
                 failedTokens.push(uniqueTokens[idx]);
+                functions.logger.error(`Token failed: ${uniqueTokens[idx]}`, resp.error);
             }
         });
         functions.logger.log("List of tokens that caused failures: " + failedTokens);

@@ -6,8 +6,9 @@ admin.initializeApp();
 const db = admin.firestore();
 const fcm = admin.messaging();
 
-export const onReportSubmitted = functions.region('asia-south1').firestore
-  .document("reports/{reportId}")
+export const onReportSubmitted = functions
+  .region("asia-south1")
+  .firestore.document("reports/{reportId}")
   .onCreate(async (snapshot, context) => {
     const report = snapshot.data();
 
@@ -21,56 +22,59 @@ export const onReportSubmitted = functions.region('asia-south1').firestore
     const reportId = context.params.reportId;
     const submittedByRegion = report.submittedByRegion;
 
-    // A map to hold unique users to notify, preventing duplicate notifications.
     const recipients = new Map<string, any>();
 
-    // 1. Get all Admins
     try {
-      const adminSnapshot = await db.collection("users").where("role", "==", "Admin").get();
-      adminSnapshot.forEach(doc => {
-          recipients.set(doc.id, doc.data());
+      const adminSnapshot = await db
+        .collection("users")
+        .where("role", "==", "Admin")
+        .get();
+      adminSnapshot.forEach((doc) => {
+        recipients.set(doc.id, doc.data());
       });
     } catch (e) {
       functions.logger.error("Failed to query for Admins", e);
     }
-    
 
-    // 2. Get all RSMs in the report's region (if a region is specified)
     if (submittedByRegion) {
       try {
-        const rsmSnapshot = await db.collection("users")
-            .where("role", "==", "RSM")
-            .where("regions", "array-contains", submittedByRegion)
-            .get();
-        
-        rsmSnapshot.forEach(doc => {
-            recipients.set(doc.id, doc.data());
+        const rsmSnapshot = await db
+          .collection("users")
+          .where("role", "==", "RSM")
+          .where("regions", "array-contains", submittedByRegion)
+          .get();
+
+        rsmSnapshot.forEach((doc) => {
+          recipients.set(doc.id, doc.data());
         });
       } catch (e) {
-         functions.logger.error("Failed to query for RSMs in region", submittedByRegion, e);
+        functions.logger.error(
+          "Failed to query for RSMs in region",
+          submittedByRegion,
+          e
+        );
       }
     } else {
-        functions.logger.log("Report is missing a region. Notifying Admins only.");
+      functions.logger.log(
+        "Report is missing a region. Notifying Admins only."
+      );
     }
-    
+
     if (recipients.size === 0) {
-        functions.logger.log("No recipients found (Admins or relevant RSMs).");
-        return null;
+      functions.logger.log("No recipients found (Admins or relevant RSMs).");
+      return null;
     }
 
     const tokens: string[] = [];
     recipients.forEach((user, uid) => {
-      // Don't notify the person who submitted the report
       if (uid === report.submittedBy) {
         return;
       }
-      // Collect all their FCM tokens
       if (user.fcmTokens && Array.isArray(user.fcmTokens)) {
         tokens.push(...user.fcmTokens);
       }
     });
-    
-    // Remove duplicate tokens, if any user has the same token registered multiple times
+
     const uniqueTokens = [...new Set(tokens)];
 
     if (uniqueTokens.length === 0) {
@@ -78,30 +82,32 @@ export const onReportSubmitted = functions.region('asia-south1').firestore
       return null;
     }
 
-    const payload = {
+    const message: admin.messaging.MulticastMessage = {
       notification: {
         title: "New Report Submitted!",
         body: `${submittedByName} just submitted a report for ${ascName}. Tap to view.`,
-        icon: "/icons/icon-192x192.png",
       },
-      data: {
-        url: `/dashboard/reports?view=${reportId}`,
+      webpush: {
+        notification: {
+          icon: "https://dailypulservs.vercel.app/icons/icon-192x192.png",
+        },
+        fcmOptions: {
+          link: `https://dailypulservs.vercel.app/dashboard/reports?view=${reportId}`,
+        },
       },
+      tokens: uniqueTokens,
     };
 
     functions.logger.log(`Sending notification to ${uniqueTokens.length} tokens.`);
 
-    const response = await fcm.sendEachForMulticast({
-        tokens: uniqueTokens,
-        notification: payload.notification,
-        data: payload.data,
-    });
+    const response = await fcm.sendEachForMulticast(message);
 
     if (response.failureCount > 0) {
       const failedTokens: string[] = [];
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
           failedTokens.push(uniqueTokens[idx]);
+          functions.logger.error(`Token failed: ${uniqueTokens[idx]}`, resp.error);
         }
       });
       functions.logger.log("List of tokens that caused failures: " + failedTokens);
