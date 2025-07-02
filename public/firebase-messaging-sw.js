@@ -1,58 +1,42 @@
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
 
-const firebaseConfig = {
-  apiKey: self.FIREBASE_API_KEY,
-  authDomain: self.FIREBASE_AUTH_DOMAIN,
-  projectId: self.FIREBASE_PROJECT_ID,
-  storageBucket: self.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID,
-  appId: self.FIREBASE_APP_ID,
-};
+// These scripts are a fallback for browsers that don't support ES6 modules in Service Workers.
+// They expose a global `firebase` object.
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-firebase.initializeApp(firebaseConfig);
+// This self.firebaseConfig promise is used to delay initialization until the config is fetched.
+self.firebaseConfig = fetch('/api/firebase-config')
+  .then((response) => response.json())
+  .catch((err) => {
+    console.error('SW: Failed to fetch Firebase config.', err);
+  });
 
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Received background message ",
-    payload
-  );
-  
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: "/icons/icon-192x192.png",
-    data: {
-      url: payload.data.url, // Pass the URL to open on click
-    },
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
-// Add a 'notificationclick' event listener to handle notification clicks
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-
-  const urlToOpen = event.notification.data.url || "/";
-
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    clients.matchAll({
-      type: "window",
-      includeUncontrolled: true,
-    }).then((clientList) => {
-      // If a window for the app is already open, focus it.
-      for (const client of clientList) {
-        if (client.url === urlToOpen && "focus" in client) {
-          return client.focus();
-        }
-      }
-      // Otherwise, open a new window.
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
+    self.firebaseConfig.then((config) => {
+      if (config && config.apiKey) {
+        firebase.initializeApp(config);
+        const messaging = firebase.messaging();
+        console.log('Firebase Messaging Service Worker initialized.');
+
+        // This is the handler for background notifications.
+        messaging.onBackgroundMessage((payload) => {
+          console.log('[firebase-messaging-sw.js] Received background message ', payload);
+          
+          const notificationTitle = payload.notification.title;
+          const notificationOptions = {
+            body: payload.notification.body,
+            icon: '/icons/icon-192x192.png',
+          };
+
+          self.registration.showNotification(notificationTitle, notificationOptions);
+        });
       }
     })
   );
+});
+
+// The fetch listener is required for the service worker to be considered for PWA installability.
+self.addEventListener('fetch', (event) => {
+  // We are not caching anything here, just fulfilling the requirement.
 });
