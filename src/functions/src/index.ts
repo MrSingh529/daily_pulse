@@ -94,12 +94,16 @@ export const onReportSubmitted = functions
     const message: admin.messaging.MulticastMessage = {
       notification: {
         title: "New Report Submitted!",
+        body: `${submittedByName} just submitted a report for ${ascName}.`,
+      },
+      // Data payload for the service worker to handle for background notifications
+      data: {
+        title: "New Report Submitted!",
         body: `${submittedByName} just submitted a report for ${ascName}. Tap to view.`,
+        icon: "https://dailypulservs.vercel.app/icons/icon-192x192.png",
+        link: `https://dailypulservs.vercel.app/dashboard/reports?view=${reportId}`,
       },
       webpush: {
-        notification: {
-          icon: "https://dailypulservs.vercel.app/icons/icon-192x192.png",
-        },
         fcmOptions: {
           link: `https://dailypulservs.vercel.app/dashboard/reports?view=${reportId}`,
         },

@@ -1,42 +1,62 @@
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
-// These scripts are a fallback for browsers that don't support ES6 modules in Service Workers.
-// They expose a global `firebase` object.
-importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
-
-// This self.firebaseConfig promise is used to delay initialization until the config is fetched.
-self.firebaseConfig = fetch('/api/firebase-config')
-  .then((response) => response.json())
-  .catch((err) => {
-    console.error('SW: Failed to fetch Firebase config.', err);
-  });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    self.firebaseConfig.then((config) => {
-      if (config && config.apiKey) {
-        firebase.initializeApp(config);
-        const messaging = firebase.messaging();
-        console.log('Firebase Messaging Service Worker initialized.');
-
-        // This is the handler for background notifications.
-        messaging.onBackgroundMessage((payload) => {
-          console.log('[firebase-messaging-sw.js] Received background message ', payload);
-          
-          const notificationTitle = payload.notification.title;
-          const notificationOptions = {
-            body: payload.notification.body,
-            icon: '/icons/icon-192x192.png',
-          };
-
-          self.registration.showNotification(notificationTitle, notificationOptions);
-        });
-      }
+// We need to fetch the config from our own API endpoint
+fetch('/api/firebase-config')
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
     })
-  );
-});
+    .then(firebaseConfig => {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
 
-// The fetch listener is required for the service worker to be considered for PWA installability.
-self.addEventListener('fetch', (event) => {
-  // We are not caching anything here, just fulfilling the requirement.
+        const messaging = firebase.messaging();
+
+        // This is the handler for background messages.
+        // It's triggered when a push message is received and the app is not in the foreground.
+        messaging.onBackgroundMessage((payload) => {
+            console.log('[firebase-messaging-sw.js] Received background message ', payload);
+            
+            // The data payload from the function
+            const notificationData = payload.data;
+            if (!notificationData) {
+                console.log("Message did not have a data payload, skipping custom notification.");
+                return;
+            }
+            
+            const notificationTitle = notificationData.title;
+            const notificationOptions = {
+                body: notificationData.body,
+                icon: notificationData.icon,
+                data: {
+                    link: notificationData.link // Store the link to open on click
+                }
+            };
+
+            // Display the notification to the user
+            return self.registration.showNotification(notificationTitle, notificationOptions);
+        });
+
+    }).catch(err => {
+        console.error('Failed to initialize Firebase messaging service worker', err);
+    });
+
+// This handler is for when the user clicks the notification itself
+self.addEventListener('notificationclick', (event) => {
+    console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification);
+    
+    // Close the notification
+    event.notification.close();
+
+    // Get the URL to open from the notification's data
+    const link = event.notification.data?.link;
+
+    // Tell the browser to open the link in a new tab/window
+    if (clients.openWindow && link) {
+        event.waitUntil(clients.openWindow(link));
+    }
 });

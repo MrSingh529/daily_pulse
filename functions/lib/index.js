@@ -1,4 +1,5 @@
 "use strict";
+'use server';
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -43,16 +44,19 @@ exports.onReportSubmitted = functions
     .region("asia-south1")
     .firestore.document("reports/{reportId}")
     .onCreate(async (snapshot, context) => {
+    functions.logger.log("Function triggered for reportId:", context.params.reportId);
     const report = snapshot.data();
     if (!report) {
-        functions.logger.log("No data associated with the event");
+        functions.logger.warn("No data associated with the event. Exiting function.");
         return null;
     }
+    functions.logger.log("Report data received:", { report });
     const submittedByName = report.submittedByName || "A user";
     const ascName = report.ascName || "a location";
     const reportId = context.params.reportId;
     const submittedByRegion = report.submittedByRegion;
     const recipients = new Map();
+    // Get all Admins
     try {
         const adminSnapshot = await db
             .collection("users")
@@ -61,10 +65,12 @@ exports.onReportSubmitted = functions
         adminSnapshot.forEach((doc) => {
             recipients.set(doc.id, doc.data());
         });
+        functions.logger.log(`Found ${adminSnapshot.size} admin(s).`);
     }
     catch (e) {
         functions.logger.error("Failed to query for Admins", e);
     }
+    // Get all RSMs in the report's region
     if (submittedByRegion) {
         try {
             const rsmSnapshot = await db
@@ -75,6 +81,7 @@ exports.onReportSubmitted = functions
             rsmSnapshot.forEach((doc) => {
                 recipients.set(doc.id, doc.data());
             });
+            functions.logger.log(`Found ${rsmSnapshot.size} RSM(s) for region: ${submittedByRegion}.`);
         }
         catch (e) {
             functions.logger.error("Failed to query for RSMs in region", submittedByRegion, e);
@@ -84,12 +91,16 @@ exports.onReportSubmitted = functions
         functions.logger.log("Report is missing a region. Notifying Admins only.");
     }
     if (recipients.size === 0) {
-        functions.logger.log("No recipients found (Admins or relevant RSMs).");
+        functions.logger.warn("No recipients found (Admins or relevant RSMs). Exiting function.");
         return null;
     }
+    functions.logger.log(`Total unique recipients to notify: ${recipients.size}.`);
+    // Collect all tokens, excluding the user who submitted the report
     const tokens = [];
     recipients.forEach((user, uid) => {
+        // Do not send notification to the person who submitted the report
         if (uid === report.submittedBy) {
+            functions.logger.log(`Skipping recipient ${uid} because they are the submitter.`);
             return;
         }
         if (user.fcmTokens && Array.isArray(user.fcmTokens)) {
@@ -98,9 +109,10 @@ exports.onReportSubmitted = functions
     });
     const uniqueTokens = [...new Set(tokens)];
     if (uniqueTokens.length === 0) {
-        functions.logger.log("No FCM tokens found for any recipients.");
+        functions.logger.warn("No FCM tokens found for any recipients after filtering. Exiting function.");
         return null;
     }
+    functions.logger.log(`Found ${uniqueTokens.length} unique FCM tokens to send to.`, { tokens: uniqueTokens });
     const message = {
         notification: {
             title: "New Report Submitted!",
@@ -116,17 +128,18 @@ exports.onReportSubmitted = functions
         },
         tokens: uniqueTokens,
     };
-    functions.logger.log(`Sending notification to ${uniqueTokens.length} tokens.`);
+    functions.logger.log("Sending multicast message...", { message });
     const response = await fcm.sendEachForMulticast(message);
+    functions.logger.log(`FCM response received: ${response.successCount} successful, ${response.failureCount} failed.`);
     if (response.failureCount > 0) {
         const failedTokens = [];
         response.responses.forEach((resp, idx) => {
             if (!resp.success) {
                 failedTokens.push(uniqueTokens[idx]);
-                functions.logger.error(`Token failed: ${uniqueTokens[idx]}`, resp.error);
+                functions.logger.error(`Token failed: ${uniqueTokens[idx]}`, { errorInfo: resp.error });
             }
         });
-        functions.logger.log("List of tokens that caused failures: " + failedTokens);
+        functions.logger.error("List of tokens that caused failures:", { failedTokens });
     }
     return null;
 });
