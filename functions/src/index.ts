@@ -100,7 +100,7 @@ export const onReportSubmitted = functions
       tokens: uniqueTokens,
     };
 
-    functions.logger.log("Sending multicast message...");
+    functions.logger.log("Sending multicast message with data payload...");
     functions.logger.log("Payload:", JSON.stringify(message.data));
 
     try {
