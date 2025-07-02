@@ -49,7 +49,7 @@ import type { Notification } from '@/lib/types';
 import { PageTransition } from '@/components/page-transition';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { startOfDay } from 'date-fns';
-
+import FcmHandler from '@/components/fcm-handler';
 
 function NotificationsDisplay() {
   const { user } = useAuth();
@@ -203,7 +203,7 @@ function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: a
             <NotificationsDisplay />
           </div>
         </header>
-        <main className="p-4 sm:px-6 sm:py-0"><PageTransition>{children}</PageTransition></main>
+        <main className="p-4 sm:px-6 sm:py-0 pb-32"><PageTransition>{children}</PageTransition></main>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -354,5 +354,10 @@ export default function DashboardLayout({
     return <MobileLayout user={user} handleLogout={handleLogout} p={p} pathname={pathname} isActive={isActive}>{children}</MobileLayout>;
   }
 
-  return <DesktopLayout>{children}</DesktopLayout>;
+  return (
+    <>
+      <FcmHandler />
+      <DesktopLayout>{children}</DesktopLayout>
+    </>
+  );
 }

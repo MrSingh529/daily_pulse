@@ -70,7 +70,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             name: firebaseUser.displayName || 'New User',
             role: 'User', // Default role
             regions: ['HQ'],
-            reportVisibility: 'Own' // Default visibility
+            reportVisibility: 'Own', // Default visibility
+            fcmTokens: [],
           };
           await setDoc(userDocRef, newUserProfile);
           setUser({ ...firebaseUser, ...newUserProfile });

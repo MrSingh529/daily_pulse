@@ -25,6 +25,7 @@ export interface UserProfile {
   regions?: Region[];
   reportVisibility?: ReportVisibility;
   permissions?: Partial<UserPermissions>;
+  fcmTokens?: string[];
 }
 
 export interface Remark {

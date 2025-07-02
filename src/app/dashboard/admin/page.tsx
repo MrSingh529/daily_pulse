@@ -262,37 +262,29 @@ export default function AdminPage() {
               {users.map((u) => (
                 <TableRow key={u.uid}>
                   <TableCell>
-                    {user?.uid === u.uid ? (
-                      <span className="font-medium">{u.name || 'N/A'}</span>
-                    ) : (
-                      <Input
-                        defaultValue={u.name || ''}
-                        onBlur={(e) => {
-                          if (e.target.value !== u.name) {
-                            handleNameChange(u.uid, e.target.value);
-                          }
-                        }}
-                        className="font-medium"
-                      />
-                    )}
+                    <Input
+                      defaultValue={u.name || ''}
+                      onBlur={(e) => {
+                        if (e.target.value !== u.name) {
+                          handleNameChange(u.uid, e.target.value);
+                        }
+                      }}
+                      className="font-medium"
+                    />
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>
-                    {user?.uid === u.uid ? (
-                       <Badge variant="secondary">{u.role}</Badge>
-                    ) : (
-                      <Select defaultValue={u.role} onValueChange={(value) => handleRoleChange(u.uid, value)}>
-                        <SelectTrigger className="w-[120px]">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Admin">Admin</SelectItem>
-                          <SelectItem value="RSM">RSM</SelectItem>
-                          <SelectItem value="ASM">ASM</SelectItem>
-                          <SelectItem value="User">User</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <Select defaultValue={u.role} onValueChange={(value) => handleRoleChange(u.uid, value)}>
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Admin">Admin</SelectItem>
+                        <SelectItem value="RSM">RSM</SelectItem>
+                        <SelectItem value="ASM">ASM</SelectItem>
+                        <SelectItem value="User">User</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                    <TableCell>
                       <div className="flex items-center gap-2">
@@ -303,7 +295,6 @@ export default function AdminPage() {
                             variant="outline" 
                             size="sm"
                             onClick={() => setEditingRegionsForUser(u)}
-                            disabled={user?.uid === u.uid}
                             className="h-7"
                           >
                             Manage
@@ -311,9 +302,6 @@ export default function AdminPage() {
                       </div>
                   </TableCell>
                    <TableCell>
-                    {user?.uid === u.uid ? (
-                       <Badge variant="secondary">{u.reportVisibility || 'Own'}</Badge>
-                    ) : (
                       <Select defaultValue={u.reportVisibility || 'Own'} onValueChange={(value) => handleVisibilityChange(u.uid, value)}>
                         <SelectTrigger className="w-[120px]">
                           <SelectValue placeholder="Select visibility" />
@@ -322,14 +310,12 @@ export default function AdminPage() {
                           {reportVisibilities.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                    )}
                   </TableCell>
                   <TableCell>
                       <Button 
                         variant="outline" 
                         size="sm"
                         onClick={() => setEditingPermissionsForUser(u)}
-                        disabled={user?.uid === u.uid}
                       >
                         Permissions
                       </Button>
