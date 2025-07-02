@@ -57,9 +57,10 @@ export interface Notification {
   id: string;
   userId: string;
   message: string;
-  reportId: string;
+  reportId?: string;
   createdAt: Timestamp;
   isRead: boolean;
+  type: 'comment' | 'reminder';
 }
 
 export interface RAEntry {

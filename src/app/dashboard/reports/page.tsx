@@ -35,6 +35,7 @@ export default function ReportsPage() {
   const [newComment, setNewComment] = React.useState('');
   const [isAddingComment, setIsAddingComment] = React.useState(false);
   const searchParams = useSearchParams();
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
 
   React.useEffect(() => {
@@ -219,6 +220,9 @@ export default function ReportsPage() {
 
   return (
     <>
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
@@ -295,7 +299,7 @@ export default function ReportsPage() {
                     <TableCell className="hidden md:table-cell">{report.date ? new Date(report.date).toLocaleDateString() : 'N/A'}</TableCell>
                     <TableCell className="text-right">₹{(report.outstandingAmount || 0).toFixed(2)}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
+                      <DropdownMenu onOpenChange={setIsMenuOpen}>
                         <DropdownMenuTrigger asChild>
                           <Button aria-haspopup="true" size="icon" variant="ghost">
                             <MoreHorizontal className="h-4 w-4" />
@@ -342,107 +346,109 @@ export default function ReportsPage() {
 
       {selectedReport && (
         <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-3xl max-h-[90svh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Report Details</DialogTitle>
               <DialogDescription>
                 Full details for report from {selectedReport.ascName} on {selectedReport.date ? new Date(selectedReport.date).toLocaleDateString() : 'N/A'}.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 py-4">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">ASC Name</span>
-                <span className="font-semibold">{selectedReport.ascName}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Date</span>
-                <span className="font-semibold">{selectedReport.date ? new Date(selectedReport.date).toLocaleDateString() : 'N/A'}</span>
-              </div>
-               <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Submitted By</span>
-                <span className="font-semibold">{selectedReport.submittedByName} ({selectedReport.submittedByRole})</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Region</span>
-                <span className="font-semibold">{selectedReport.submittedByRegion || 'N/A'}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Total Remaining Outstanding</span>
-                <span className="font-semibold">₹{(selectedReport.outstandingAmount || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">OOW Collection</span>
-                <span className="font-semibold">₹{(selectedReport.oowCollection || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Good Inventory to Realme</span>
-                <span className="font-semibold">{selectedReport.goodInventoryRealme || 0}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Defective Inventory to Realme</span>
-                <span className="font-semibold">{selectedReport.defectiveInventoryRealme || 0}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Realme SD Collection</span>
-                <span className="font-semibold">₹{(selectedReport.realmeSdCollection || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Multibrand STNs Dispatched</span>
-                <span className="font-semibold">{selectedReport.multibrandStnDispatched || 0}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">Pending STNs (3+ Days)</span>
-                <span className="font-semibold">{selectedReport.multibrandPendingStns || 0}</span>
-              </div>
-               <div className="flex flex-col">
-                <span className="text-sm font-medium text-muted-foreground">After Sign Off Realme Agreement Dispatch to HO (QTY)</span>
-                <span className="font-semibold">{selectedReport.realmeAgreementDispatch}</span>
-              </div>
-            </div>
-             <div className="border-t pt-4">
-                <h4 className="font-semibold mb-4 text-base">Remarks Timeline</h4>
-                <div className="space-y-4 max-h-48 overflow-y-auto pr-4 mb-4 relative">
-                    {selectedReport.remarks && selectedReport.remarks.length > 0 ? (
-                        <>
-                          <div className="absolute left-3 top-0 h-full w-px bg-border -translate-x-1/2"></div>
-                          {selectedReport.remarks.sort((a,b) => a.date.toMillis() - b.date.toMillis()).map((remark, index) => {
-                              const remarkUser = allUsers.find(u => u.uid === remark.byId);
-                              return (
-                                  <div key={index} className="relative pl-8">
-                                      <div className="absolute -left-[1px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background border-2 border-primary">
-                                          <Avatar className="h-6 w-6">
-                                              <AvatarImage src={remarkUser?.photoURL || undefined} alt={remark.byName} />
-                                              <AvatarFallback>{remark.byName.charAt(0).toUpperCase()}</AvatarFallback>
-                                          </Avatar>
-                                      </div>
-                                      <div className="ml-3">
-                                          <div className="rounded-lg border bg-muted/40 p-3">
-                                              <div className="flex items-center justify-between">
-                                                  <p className="font-semibold text-sm text-foreground">{remark.byName}</p>
-                                                  <p className="text-xs text-muted-foreground">{remark.date.toDate().toLocaleString()}</p>
-                                              </div>
-                                              <p className="mt-1 text-sm text-foreground/80">{remark.text}</p>
-                                          </div>
-                                      </div>
-                                  </div>
-                              )
-                          })}
-                        </>
-                    ) : (
-                        <p className="text-sm text-muted-foreground pl-2">No remarks yet.</p>
-                    )}
+            <div className="flex-1 overflow-y-auto -mr-6 pr-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 py-4">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">ASC Name</span>
+                        <span className="font-semibold">{selectedReport.ascName}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Date</span>
+                        <span className="font-semibold">{selectedReport.date ? new Date(selectedReport.date).toLocaleDateString() : 'N/A'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Submitted By</span>
+                        <span className="font-semibold">{selectedReport.submittedByName} ({selectedReport.submittedByRole})</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Region</span>
+                        <span className="font-semibold">{selectedReport.submittedByRegion || 'N/A'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Total Remaining Outstanding</span>
+                        <span className="font-semibold">₹{(selectedReport.outstandingAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">OOW Collection</span>
+                        <span className="font-semibold">₹{(selectedReport.oowCollection || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Good Inventory to Realme</span>
+                        <span className="font-semibold">{selectedReport.goodInventoryRealme || 0}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Defective Inventory to Realme</span>
+                        <span className="font-semibold">{selectedReport.defectiveInventoryRealme || 0}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Realme SD Collection</span>
+                        <span className="font-semibold">₹{(selectedReport.realmeSdCollection || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Multibrand STNs Dispatched</span>
+                        <span className="font-semibold">{selectedReport.multibrandStnDispatched || 0}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">Pending STNs (3+ Days)</span>
+                        <span className="font-semibold">{selectedReport.multibrandPendingStns || 0}</span>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">After Sign Off Realme Agreement Dispatch to HO (QTY)</span>
+                        <span className="font-semibold">{selectedReport.realmeAgreementDispatch}</span>
+                    </div>
                 </div>
-                <div className="mt-2 flex items-start gap-2">
-                    <Textarea 
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Add a new remark..."
-                        className="flex-1"
-                        rows={2}
-                    />
-                    <Button onClick={handleAddComment} disabled={isAddingComment || !newComment.trim()}>
-                        {isAddingComment ? "Adding..." : "Add"}
-                    </Button>
+                <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-4 text-base">Remarks Timeline</h4>
+                    <div className="space-y-4 mb-4 relative">
+                        {selectedReport.remarks && selectedReport.remarks.length > 0 ? (
+                            <>
+                            <div className="absolute left-3 top-0 h-full w-px bg-border -translate-x-1/2"></div>
+                            {selectedReport.remarks.sort((a,b) => a.date.toMillis() - b.date.toMillis()).map((remark, index) => {
+                                const remarkUser = allUsers.find(u => u.uid === remark.byId);
+                                return (
+                                    <div key={index} className="relative pl-8">
+                                        <div className="absolute -left-[1px] top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background border-2 border-primary">
+                                            <Avatar className="h-6 w-6">
+                                                <AvatarImage src={remarkUser?.photoURL || undefined} alt={remark.byName} data-ai-hint="person" />
+                                                <AvatarFallback>{remark.byName.charAt(0).toUpperCase()}</AvatarFallback>
+                                            </Avatar>
+                                        </div>
+                                        <div className="ml-3">
+                                            <div className="rounded-lg border bg-muted/40 p-3">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="font-semibold text-sm text-foreground">{remark.byName}</p>
+                                                    <p className="text-xs text-muted-foreground">{remark.date.toDate().toLocaleString()}</p>
+                                                </div>
+                                                <p className="mt-1 text-sm text-foreground/80">{remark.text}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                            </>
+                        ) : (
+                            <p className="text-sm text-muted-foreground pl-2">No remarks yet.</p>
+                        )}
+                    </div>
+                    <div className="mt-2 flex items-start gap-2">
+                        <Textarea 
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add a new remark..."
+                            className="flex-1"
+                            rows={2}
+                        />
+                        <Button onClick={handleAddComment} disabled={isAddingComment || !newComment.trim()}>
+                            {isAddingComment ? "Adding..." : "Add"}
+                        </Button>
+                    </div>
                 </div>
             </div>
           </DialogContent>

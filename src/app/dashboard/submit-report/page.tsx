@@ -5,9 +5,9 @@ import * as React from 'react';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { addDoc, collection, Timestamp, getDocs, query, where, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -74,7 +74,7 @@ export default function SubmitReportPage() {
   }, [user, form]);
 
   async function onSubmit(data: ReportFormValues) {
-    if (!user) {
+    if (!user || !db) {
         toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to submit a report." });
         return;
     }
@@ -102,6 +102,22 @@ export default function SubmitReportPage() {
         }
 
         await addDoc(collection(db, "reports"), newReportData);
+        
+        // After successful submission, remove any reminder notifications for today
+        const todayStart = startOfDay(new Date());
+        const todayStartTimestamp = Timestamp.fromDate(todayStart);
+        const notificationsRef = collection(db, "notifications");
+        const q = query(
+            notificationsRef,
+            where("userId", "==", user.uid),
+            where("type", "==", "reminder"),
+            where("createdAt", ">=", todayStartTimestamp)
+        );
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (docSnapshot) => {
+            await deleteDoc(doc(db, "notifications", docSnapshot.id));
+        });
+
 
         toast({
             title: "Report Submitted!",
@@ -336,7 +352,7 @@ export default function SubmitReportPage() {
               )}
             />
 
-            <Button type="submit" disabled={isSubmitting} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+            <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 {isSubmitting ? 'Submitting...' : 'Submit Report'}
             </Button>
           </form>

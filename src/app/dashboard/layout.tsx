@@ -1,10 +1,12 @@
-
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
+import { useIsMobile } from '@/hooks/use-mobile';
+
+// UI Components
 import {
   SidebarProvider,
   Sidebar,
@@ -17,31 +19,36 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
+import { BottomDock } from '@/components/bottom-dock';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+
+// Icons
 import {
   LayoutDashboard,
   FileText,
   PlusCircle,
   LogOut,
   Activity,
-  Search,
-  Users,
   Bell,
   Coins,
   BarChartBig,
   CalendarCheck,
   Route,
   ClipboardList,
+  Info,
+  Users,
 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+
+// Firebase
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Notification } from '@/lib/types';
 import { PageTransition } from '@/components/page-transition';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { startOfDay } from 'date-fns';
 
 
 function NotificationsDisplay() {
@@ -63,8 +70,6 @@ function NotificationsDisplay() {
       setNotifications(notifs);
     }, (error) => {
       console.error("Error fetching notifications:", error);
-      // This is often due to a missing Firestore index. 
-      // The browser console will have a link to create it.
     });
 
     return () => unsubscribe();
@@ -72,11 +77,22 @@ function NotificationsDisplay() {
 
   const handleNotificationClick = async (notification: Notification) => {
     if (!db) return;
+
+    // Handle special reminder notifications
+    if (notification.type === 'reminder') {
+        router.push('/dashboard/submit-report');
+        // Do not mark as read, it will be deleted on submission
+        return;
+    }
+    
+    // Existing logic for comment notifications
     if (!notification.isRead) {
         const notifRef = doc(db, 'notifications', notification.id);
         await updateDoc(notifRef, { isRead: true });
     }
-    router.push(`/dashboard/reports?view=${notification.reportId}`);
+    if (notification.reportId) {
+        router.push(`/dashboard/reports?view=${notification.reportId}`);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -84,10 +100,10 @@ function NotificationsDisplay() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative rounded-full h-12 w-12">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 justify-center p-0">{unreadCount}</Badge>
+            <Badge className="absolute top-2 right-2 h-5 w-5 justify-center p-0">{unreadCount}</Badge>
           )}
           <span className="sr-only">Toggle notifications</span>
         </Button>
@@ -123,40 +139,7 @@ function NotificationsDisplay() {
   )
 }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const { user, loading, logout } = useAuth();
-  const isActive = (path: string) => pathname.startsWith(path);
-
-  React.useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
-    }
-  }, [user, loading, router]);
-
-  if (loading || !user) {
-    return (
-       <div className="flex items-center justify-center min-h-screen">
-         <div className="flex flex-col items-center gap-4">
-            <Activity className="w-12 h-12 text-primary animate-pulse" />
-            <p className="text-muted-foreground">Loading your dashboard...</p>
-         </div>
-       </div>
-    );
-  }
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/');
-  }
-  
-  const p = user.permissions || {};
-
+function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: any) {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -171,166 +154,205 @@ export default function DashboardLayout({
           <SidebarMenu className="flex-1">
             <SidebarMenuItem>
               <Link href="/dashboard" passHref>
-                <SidebarMenuButton
-                  isActive={pathname === '/dashboard'}
-                  tooltip="Dashboard"
-                >
-                  <LayoutDashboard />
-                  <span>Dashboard</span>
+                <SidebarMenuButton isActive={pathname === '/dashboard'} tooltip="Dashboard">
+                  <LayoutDashboard /><span>Dashboard</span>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
-            
             {(p.viewReports ?? true) && (
-              <SidebarMenuItem>
-                <Link href="/dashboard/reports" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/reports')}
-                    tooltip="Reports"
-                  >
-                    <FileText />
-                    <span>Reports</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              <SidebarMenuItem><Link href="/dashboard/reports" passHref><SidebarMenuButton isActive={isActive('/dashboard/reports')} tooltip="Reports"><FileText /><span>Reports</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
             {(p.viewAttendance ?? true) && (
-               <SidebarMenuItem>
-                <Link href="/dashboard/attendance" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/attendance')}
-                    tooltip="Attendance"
-                  >
-                    <CalendarCheck />
-                    <span>Attendance</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+               <SidebarMenuItem><Link href="/dashboard/attendance" passHref><SidebarMenuButton isActive={isActive('/dashboard/attendance')} tooltip="Attendance"><CalendarCheck /><span>Attendance</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
             {(p.submitPjp ?? (user.role === 'Admin' || user.role === 'RSM' || user.role === 'ASM')) && (
-              <SidebarMenuItem>
-                <Link href="/dashboard/submit-pjp" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/submit-pjp')}
-                    tooltip="Submit PJP"
-                  >
-                    <Route />
-                    <span>Submit PJP</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              <SidebarMenuItem><Link href="/dashboard/submit-pjp" passHref><SidebarMenuButton isActive={isActive('/dashboard/submit-pjp')} tooltip="Submit PJP"><Route /><span>Submit PJP</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
             {(p.submitReport ?? true) && (
-              <SidebarMenuItem>
-                <Link href="/dashboard/submit-report" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/submit-report')}
-                    tooltip="Submit Report"
-                  >
-                    <PlusCircle />
-                    <span>Submit Report</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              <SidebarMenuItem><Link href="/dashboard/submit-report" passHref><SidebarMenuButton isActive={isActive('/dashboard/submit-report')} tooltip="Submit Report"><PlusCircle /><span>Submit Report</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
              {(p.viewPjp ?? (user.role === 'Admin' || user.reportVisibility === 'Region' || user.reportVisibility === 'All')) && (
-                <SidebarMenuItem>
-                  <Link href="/dashboard/pjp" passHref>
-                    <SidebarMenuButton
-                      isActive={isActive('/dashboard/pjp')}
-                      tooltip="PJP Plans"
-                    >
-                      <ClipboardList />
-                      <span>PJP Plans</span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
+                <SidebarMenuItem><Link href="/dashboard/pjp" passHref><SidebarMenuButton isActive={isActive('/dashboard/pjp')} tooltip="PJP Plans"><ClipboardList /><span>PJP Plans</span></SidebarMenuButton></Link></SidebarMenuItem>
               )}
-              
             {(p.viewAnalysis ?? user.role === 'Admin') && (
-               <SidebarMenuItem>
-                <Link href="/dashboard/analysis" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/analysis')}
-                    tooltip="Analysis"
-                  >
-                    <BarChartBig />
-                    <span>Analysis</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+               <SidebarMenuItem><Link href="/dashboard/analysis" passHref><SidebarMenuButton isActive={isActive('/dashboard/analysis')} tooltip="Analysis"><BarChartBig /><span>Analysis</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
             {(p.doRaEntry ?? user.role === 'Admin') && (
-              <SidebarMenuItem>
-                <Link href="/dashboard/ra-entry" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/ra-entry')}
-                    tooltip="RA Entry"
-                  >
-                    <Coins />
-                    <span>RA Entry</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              <SidebarMenuItem><Link href="/dashboard/ra-entry" passHref><SidebarMenuButton isActive={isActive('/dashboard/ra-entry')} tooltip="RA Entry"><Coins /><span>RA Entry</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
-
             {(p.manageUsers ?? user.role === 'Admin') && (
-              <SidebarMenuItem>
-                <Link href="/dashboard/admin" passHref>
-                  <SidebarMenuButton
-                    isActive={isActive('/dashboard/admin')}
-                    tooltip="User Management"
-                  >
-                    <Users />
-                    <span>Users</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
+              <SidebarMenuItem><Link href="/dashboard/admin" passHref><SidebarMenuButton isActive={isActive('/dashboard/admin')} tooltip="User Management"><Users /><span>Users</span></SidebarMenuButton></Link></SidebarMenuItem>
             )}
+            <SidebarMenuItem><Link href="/dashboard/about" passHref><SidebarMenuButton isActive={isActive('/dashboard/about')} tooltip="About App"><Info /><span>About</span></SidebarMenuButton></Link></SidebarMenuItem>
           </SidebarMenu>
 
           <SidebarFooter>
             <div className="flex items-center gap-3">
-              <Avatar className="h-9 w-9">
-                 <AvatarImage src={user.photoURL || undefined} alt={user.name || 'User'} data-ai-hint="person" />
-                <AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col truncate">
-                <span className="text-sm font-medium truncate">{user.name || 'User'}</span>
-                <span className="text-xs text-muted-foreground truncate">{user.email}</span>
-              </div>
+              <Avatar className="h-9 w-9"><AvatarImage src={user.photoURL || undefined} alt={user.name || 'User'} data-ai-hint="person" /><AvatarFallback>{user.name ? user.name.charAt(0).toUpperCase() : 'U'}</AvatarFallback></Avatar>
+              <div className="flex flex-col truncate"><span className="text-sm font-medium truncate">{user.name || 'User'}</span><span className="text-xs text-muted-foreground truncate">{user.email}</span></div>
             </div>
-            <Button onClick={handleLogout} variant="ghost" className="w-full justify-start gap-2">
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </Button>
+            <Button onClick={handleLogout} variant="ghost" className="w-full justify-start gap-2"><LogOut className="w-4 h-4" /><span>Logout</span></Button>
           </SidebarFooter>
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-          <SidebarTrigger className="sm:hidden" />
-          <div className="relative ml-auto flex-1 md:grow-0">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search..."
-              className="w-full rounded-lg bg-secondary pl-8 md:w-[200px] lg:w-[320px]"
-            />
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-xl sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+          <SidebarTrigger />
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
+            <NotificationsDisplay />
           </div>
-          <NotificationsDisplay />
         </header>
-        <main className="p-4 sm:px-6 sm:py-0">
-          <PageTransition>
-            {children}
-          </PageTransition>
-        </main>
+        <main className="p-4 sm:px-6 sm:py-0"><PageTransition>{children}</PageTransition></main>
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+function DesktopLayout({ children }: { children: React.ReactNode }) {
+  const dockRef = React.useRef<HTMLDivElement>(null);
+  const [dockHeight, setDockHeight] = React.useState(0);
+
+  React.useEffect(() => {
+    if (dockRef.current) {
+      setDockHeight(dockRef.current.offsetHeight);
+      const handleResize = () => {
+        setDockHeight(dockRef.current?.offsetHeight || 0);
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  return (
+    <div className="relative min-h-screen w-full">
+      {/* Added top padding here (pt-6) and increased bottom padding */}
+      <main 
+        className="p-4 sm:px-6 pt-6" 
+        style={{ 
+          paddingBottom: `${dockHeight + 100}px`, // Increased from 85px to 100px
+          minHeight: 'calc(100vh - 6rem)' // Ensures content fills the space
+        }}
+      >
+        <PageTransition>
+          {children}
+        </PageTransition>
+      </main>
+      <BottomDock 
+        ref={dockRef}
+        notificationsComponent={<NotificationsDisplay />} 
+      />
+    </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading, logout } = useAuth();
+  const isMobile = useIsMobile();
+  const isActive = (path: string) => pathname.startsWith(path);
+  
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+  
+  React.useEffect(() => {
+    const checkAndCreateReminder = async () => {
+      if (!db || !user || (user.role !== 'ASM' && user.role !== 'RSM')) {
+        return;
+      }
+
+      const now = new Date();
+      const istHour = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Kolkata'})).getHours();
+      
+      if (istHour < 19) { // 7 PM IST
+          return;
+      }
+
+      const todayStart = startOfDay(new Date());
+      const todayStartTimestamp = Timestamp.fromDate(todayStart);
+
+      const reportsRef = collection(db, 'reports');
+      const reportsQuery = query(
+        reportsRef, 
+        where('submittedBy', '==', user.uid), 
+        where('date', '>=', todayStartTimestamp)
+      );
+      const reportSnapshot = await getDocs(reportsQuery);
+      if (!reportSnapshot.empty) {
+        return;
+      }
+
+      const notificationsRef = collection(db, 'notifications');
+      const reminderQuery = query(
+        notificationsRef, 
+        where('userId', '==', user.uid), 
+        where('type', '==', 'reminder'),
+        where('createdAt', '>=', todayStartTimestamp)
+      );
+      const reminderSnapshot = await getDocs(reminderQuery);
+      if (!reminderSnapshot.empty) {
+        return;
+      }
+
+      await addDoc(notificationsRef, {
+        userId: user.uid,
+        message: "The day's wrapping up! Time to share your progress. Please submit your daily report.",
+        createdAt: Timestamp.now(),
+        isRead: false,
+        type: 'reminder',
+      });
+    };
+
+    if (user) {
+      checkAndCreateReminder();
+    }
+  }, [user]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <Activity className="w-12 h-12 text-primary animate-pulse" />
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  }
+  
+  const p = user.permissions || {};
+
+  if (!isClient) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center gap-4">
+           <Activity className="w-12 h-12 text-primary animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return <MobileLayout user={user} handleLogout={handleLogout} p={p} pathname={pathname} isActive={isActive}>{children}</MobileLayout>;
+  }
+
+  return <DesktopLayout>{children}</DesktopLayout>;
 }
