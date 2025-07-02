@@ -22,8 +22,6 @@ import {
 import { BottomDock } from '@/components/bottom-dock';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
 
 // Icons
 import {
@@ -32,7 +30,6 @@ import {
   PlusCircle,
   LogOut,
   Activity,
-  Bell,
   Coins,
   BarChartBig,
   CalendarCheck,
@@ -43,101 +40,14 @@ import {
 } from 'lucide-react';
 
 // Firebase
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Notification } from '@/lib/types';
 import { PageTransition } from '@/components/page-transition';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { startOfDay } from 'date-fns';
 import FcmHandler from '@/components/fcm-handler';
+import NotificationBell from '@/components/notification-bell';
 
-function NotificationsDisplay() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
-  
-  React.useEffect(() => {
-    if (!user || !db) return;
-
-    const q = query(
-      collection(db, 'notifications'), 
-      where('userId', '==', user.uid), 
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-      setNotifications(notifs);
-    }, (error) => {
-      console.error("Error fetching notifications:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  const handleNotificationClick = async (notification: Notification) => {
-    if (!db) return;
-
-    // Handle special reminder notifications
-    if (notification.type === 'reminder') {
-        router.push('/dashboard/submit-report');
-        // Do not mark as read, it will be deleted on submission
-        return;
-    }
-    
-    // Existing logic for comment notifications
-    if (!notification.isRead) {
-        const notifRef = doc(db, 'notifications', notification.id);
-        await updateDoc(notifRef, { isRead: true });
-    }
-    if (notification.reportId) {
-        router.push(`/dashboard/reports?view=${notification.reportId}`);
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative rounded-full h-12 w-12">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <Badge className="absolute top-2 right-2 h-5 w-5 justify-center p-0">{unreadCount}</Badge>
-          )}
-          <span className="sr-only">Toggle notifications</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80" align="end">
-         <div className="flex items-center justify-between p-2 border-b">
-            <h4 className="font-medium text-sm">Notifications</h4>
-            {unreadCount > 0 && <Badge variant="secondary">{unreadCount} new</Badge>}
-         </div>
-         <div className="max-h-80 overflow-y-auto">
-          {notifications.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No notifications yet.</p>
-          ) : (
-            notifications.map(n => (
-              <div 
-                key={n.id} 
-                onClick={() => handleNotificationClick(n)}
-                className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-muted/50 rounded-md ${!n.isRead ? 'bg-primary/5' : ''}`}
-              >
-                {!n.isRead && <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />}
-                <div className={`flex-1 text-sm ${!n.isRead ? 'ml-0' : 'ml-4'}`}>
-                  <p>{n.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(n.createdAt.toDate()).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-         </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: any) {
   return (
@@ -200,7 +110,7 @@ function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: a
           <SidebarTrigger />
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            <NotificationsDisplay />
+            <NotificationBell />
           </div>
         </header>
         <main className="p-4 sm:px-6 sm:py-0 pb-32"><PageTransition>{children}</PageTransition></main>
@@ -210,38 +120,14 @@ function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: a
 }
 
 function DesktopLayout({ children }: { children: React.ReactNode }) {
-  const dockRef = React.useRef<HTMLDivElement>(null);
-  const [dockHeight, setDockHeight] = React.useState(0);
-
-  React.useEffect(() => {
-    if (dockRef.current) {
-      setDockHeight(dockRef.current.offsetHeight);
-      const handleResize = () => {
-        setDockHeight(dockRef.current?.offsetHeight || 0);
-      };
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, []);
-
   return (
     <div className="relative min-h-screen w-full">
-      {/* Added top padding here (pt-6) and increased bottom padding */}
-      <main 
-        className="p-4 sm:px-6 pt-6" 
-        style={{ 
-          paddingBottom: `${dockHeight + 100}px`, // Increased from 85px to 100px
-          minHeight: 'calc(100vh - 6rem)' // Ensures content fills the space
-        }}
-      >
+      <main className="p-4 sm:px-6 sm:py-0 pb-32">
         <PageTransition>
           {children}
         </PageTransition>
       </main>
-      <BottomDock 
-        ref={dockRef}
-        notificationsComponent={<NotificationsDisplay />} 
-      />
+      <BottomDock notificationsComponent={<NotificationBell />} />
     </div>
   );
 }

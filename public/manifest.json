@@ -1,7 +1,10 @@
 {
   "name": "Daily Pulse",
   "short_name": "Daily Pulse",
-  "description": "Simplified reporting for regional teams.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F5F5F5",
+  "theme_color": "#3F51B5",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -13,10 +16,5 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ],
-  "theme_color": "#3F51B5",
-  "background_color": "#F5F5F5",
-  "start_url": "/dashboard",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
