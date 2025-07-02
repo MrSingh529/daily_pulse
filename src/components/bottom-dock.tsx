@@ -30,29 +30,30 @@ interface BottomDockProps {
   notificationsComponent: React.ReactNode;
 }
 
-export function BottomDock({ notificationsComponent }: BottomDockProps) {
-  const pathname = usePathname();
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const p = user?.permissions || {};
+export const BottomDock = React.forwardRef<HTMLDivElement, BottomDockProps>(
+  ({ notificationsComponent }, ref) => {
+    const pathname = usePathname();
+    const { user, logout } = useAuth();
+    const router = useRouter();
+    const p = user?.permissions || {};
 
-  const menuItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shouldRender: true },
-    { href: '/dashboard/reports', icon: FileText, label: 'Reports', shouldRender: p.viewReports ?? true },
-    { href: '/dashboard/attendance', icon: CalendarCheck, label: 'Attendance', shouldRender: p.viewAttendance ?? true },
-    { href: '/dashboard/submit-pjp', icon: Route, label: 'Submit PJP', shouldRender: (p.submitPjp ?? (user?.role === 'Admin' || user?.role === 'RSM' || user?.role === 'ASM')) },
-    { href: '/dashboard/submit-report', icon: PlusCircle, label: 'Submit Report', shouldRender: p.submitReport ?? true },
-    { href: '/dashboard/pjp', icon: ClipboardList, label: 'PJP Plans', shouldRender: (p.viewPjp ?? (user?.role === 'Admin' || user?.reportVisibility === 'Region' || user?.reportVisibility === 'All')) },
-    { href: '/dashboard/analysis', icon: BarChartBig, label: 'Analysis', shouldRender: p.viewAnalysis ?? user?.role === 'Admin' },
-    { href: '/dashboard/ra-entry', icon: Coins, label: 'RA Entry', shouldRender: p.doRaEntry ?? user?.role === 'Admin' },
-    { href: '/dashboard/admin', icon: Users, label: 'Users', shouldRender: p.manageUsers ?? user?.role === 'Admin' },
-    { href: '/dashboard/about', icon: Info, label: 'About', shouldRender: true },
-  ].filter(item => item.shouldRender);
+    const menuItems = [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', shouldRender: true },
+      { href: '/dashboard/reports', icon: FileText, label: 'Reports', shouldRender: p.viewReports ?? true },
+      { href: '/dashboard/attendance', icon: CalendarCheck, label: 'Attendance', shouldRender: p.viewAttendance ?? true },
+      { href: '/dashboard/submit-pjp', icon: Route, label: 'Submit PJP', shouldRender: (p.submitPjp ?? (user?.role === 'Admin' || user?.role === 'RSM' || user?.role === 'ASM')) },
+      { href: '/dashboard/submit-report', icon: PlusCircle, label: 'Submit Report', shouldRender: p.submitReport ?? true },
+      { href: '/dashboard/pjp', icon: ClipboardList, label: 'PJP Plans', shouldRender: (p.viewPjp ?? (user?.role === 'Admin' || user?.reportVisibility === 'Region' || user?.reportVisibility === 'All')) },
+      { href: '/dashboard/analysis', icon: BarChartBig, label: 'Analysis', shouldRender: p.viewAnalysis ?? user?.role === 'Admin' },
+      { href: '/dashboard/ra-entry', icon: Coins, label: 'RA Entry', shouldRender: p.doRaEntry ?? user?.role === 'Admin' },
+      { href: '/dashboard/admin', icon: Users, label: 'Users', shouldRender: p.manageUsers ?? user?.role === 'Admin' },
+      { href: '/dashboard/about', icon: Info, label: 'About', shouldRender: true },
+    ].filter(item => item.shouldRender);
 
-  const handleLogout = async () => {
-    await logout();
-    router.push('/');
-  };
+    const handleLogout = async () => {
+      await logout();
+      router.push('/');
+    };
 
   const vibrate = () => {
     if (typeof window !== 'undefined' && 'vibrate' in navigator) {
@@ -66,6 +67,7 @@ export function BottomDock({ notificationsComponent }: BottomDockProps) {
     <TooltipProvider delayDuration={100}>
       <AnimatePresence>
         <motion.div
+          ref={ref}
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
@@ -172,7 +174,7 @@ export function BottomDock({ notificationsComponent }: BottomDockProps) {
                       onClick={vibrate}
                     >
                       <Avatar className="h-10 w-10 border-2 hover:border-primary transition-all relative">
-                        <AvatarImage src={user.photoURL || undefined} alt={user.name || 'User'} />
+                        <AvatarImage src={user.photoURL || undefined} alt={user.name || 'User'} data-ai-hint="person" />
                         <AvatarFallback className="bg-accent">
                           {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
                         </AvatarFallback>
@@ -206,4 +208,6 @@ export function BottomDock({ notificationsComponent }: BottomDockProps) {
       </AnimatePresence>
     </TooltipProvider>
   );
-}
+});
+
+BottomDock.displayName = "BottomDock";

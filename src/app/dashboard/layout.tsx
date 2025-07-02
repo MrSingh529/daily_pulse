@@ -57,7 +57,7 @@ function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: a
           <SidebarHeader>
             <Link href="/dashboard" className="flex items-center gap-2">
               <Activity className="w-6 h-6 text-primary" />
-              <h1 className="text-xl font-semibold">Daily Pulse</h1>
+              <h1 className="text-xl font-semibold">ReportStream</h1>
             </Link>
           </SidebarHeader>
 
@@ -120,14 +120,37 @@ function MobileLayout({ children, user, handleLogout, p, pathname, isActive }: a
 }
 
 function DesktopLayout({ children }: { children: React.ReactNode }) {
+  const dockRef = React.useRef<HTMLDivElement>(null);
+  const [dockHeight, setDockHeight] = React.useState(0);
+
+  React.useEffect(() => {
+    if (dockRef.current) {
+      setDockHeight(dockRef.current.offsetHeight);
+      const handleResize = () => {
+        setDockHeight(dockRef.current?.offsetHeight || 0);
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen w-full">
-      <main className="p-4 sm:px-6 sm:py-0 pb-32">
+      <main 
+        className="p-4 sm:px-6 pt-6" 
+        style={{ 
+          paddingBottom: `${dockHeight + 100}px`,
+          minHeight: 'calc(100vh - 6rem)'
+        }}
+      >
         <PageTransition>
           {children}
         </PageTransition>
       </main>
-      <BottomDock notificationsComponent={<NotificationBell />} />
+      <BottomDock 
+        ref={dockRef}
+        notificationsComponent={<NotificationBell />} 
+      />
     </div>
   );
 }
