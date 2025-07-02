@@ -75,28 +75,29 @@ export default function AttendancePage() {
 
         // Fetch users based on visibility
         let usersQuery;
+        const rolesToView = ['ASM', 'RSM'];
+
         if (user.role === 'Admin' || user.reportVisibility === 'All') {
-             usersQuery = query(collection(db, 'users'), where('role', 'in', ['ASM', 'RSM']));
+             usersQuery = query(collection(db, 'users'), where('role', 'in', rolesToView));
         } else if (user.reportVisibility === 'Region' && user.regions && user.regions.length > 0) {
-            // Can see users who are in any of the manager's regions.
-             usersQuery = query(collection(db, 'users'), where('regions', 'array-contains-any', user.regions), where('role', 'in', ['ASM', 'RSM']));
+            usersQuery = query(collection(db, 'users'), where('regions', 'array-contains-any', user.regions), where('role', 'in', rolesToView));
         } else {
-            // For 'Own' visibility, or if region manager has no regions assigned.
-            setAllUsers([user]);
+            // Only show self if they are ASM/RSM, otherwise empty list for this page.
+             if (rolesToView.includes(user.role as string)) {
+                setAllUsers([user]);
+            } else {
+                setAllUsers([]);
+            }
             usersLoaded = true; checkLoading();
             return () => { unsubReports() };
         }
         
         const unsubUsers = onSnapshot(usersQuery, snap => {
             const usersData = snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile));
-            // Additional client-side filtering if 'array-contains-any' is not precise enough (e.g. user in N, manager in [N,S])
-            // This is actually not needed as firestore `array-contains-any` does what we need.
             setAllUsers(usersData);
             usersLoaded = true; checkLoading();
         }, (error) => {
             console.error("Error fetching users for attendance:", error);
-            // This can happen if firestore indexes are not created. 
-            // The console will provide a link to create them.
             setAllUsers([]);
             usersLoaded = true; checkLoading();
         });
@@ -106,12 +107,18 @@ export default function AttendancePage() {
 
     const viewableUsers = React.useMemo(() => {
         if (!user) return [];
+        // Add self to the list if not already present, to allow viewing own attendance
+        const userList = [...allUsers];
+        const rolesForAttendance = ['Admin', 'RSM', 'ASM'];
+        if (rolesForAttendance.includes(user.role) && !userList.find(u => u.uid === user.uid)) {
+            userList.unshift(user);
+        }
+
         if (user.role === 'Admin' || user.reportVisibility === 'All') {
-            return allUsers;
+            return userList;
         }
         if (user.reportVisibility === 'Region') {
-            // We already filtered by Firestore query, but a double check doesn't hurt.
-            return allUsers.filter(u => u.regions && u.regions.length > 0 && u.regions.some(r => user.regions?.includes(r)));
+            return userList.filter(u => u.uid === user.uid || (u.regions && u.regions.length > 0 && u.regions.some(r => user.regions?.includes(r))));
         }
         return [user];
     }, [user, allUsers]);
@@ -127,9 +134,7 @@ export default function AttendancePage() {
         const daysInMonth = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
         
         daysInMonth.forEach(day => {
-            // Don't mark future days as absent
             if (!isPast(day) && !isToday(day)) return;
-            // Ignore weekends for absence calculation
             if (isWeekend(day)) return;
 
             const hasSubmitted = reportDates.some(reportDate => isSameDay(day, reportDate));
@@ -156,7 +161,7 @@ export default function AttendancePage() {
 
     }, [selectedUserId, allReports, currentMonth]);
     
-    const selectedUser = allUsers.find(u => u.uid === selectedUserId);
+    const selectedUser = viewableUsers.find(u => u.uid === selectedUserId);
 
     const goToPreviousMonth = () => {
         setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -169,16 +174,15 @@ export default function AttendancePage() {
 
     return (
         <div className="space-y-6">
-            {/* Header Card */}
-            <Card className="shadow-sm border-0 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <Card className="shadow-sm border-0 bg-primary/5 dark:bg-primary/10">
                 <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <CalendarDays className="h-6 w-6 text-blue-600" />
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                            <CalendarDays className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                            <CardTitle className="text-2xl text-gray-900">Attendance Tracker</CardTitle>
-                            <CardDescription className="text-gray-600 mt-1">
+                            <CardTitle className="text-2xl text-foreground">Attendance Tracker</CardTitle>
+                            <CardDescription className="text-muted-foreground mt-1">
                                 Monitor daily report submissions and attendance patterns
                             </CardDescription>
                         </div>
@@ -187,7 +191,7 @@ export default function AttendancePage() {
                 <CardContent className="pt-0">
                     {viewableUsers.length > 1 && (
                          <Select value={selectedUserId || ''} onValueChange={setSelectedUserId}>
-                            <SelectTrigger className="w-full md:w-1/3 bg-white border-gray-200 shadow-sm">
+                            <SelectTrigger className="w-full md:w-1/3 shadow-sm">
                                 <SelectValue placeholder="Select User" />
                             </SelectTrigger>
                             <SelectContent>
@@ -195,7 +199,7 @@ export default function AttendancePage() {
                                     <SelectItem key={u.uid} value={u.uid}>
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium">{u.name}</span>
-                                            <span className="text-xs text-gray-500">({u.role})</span>
+                                            <span className="text-xs text-muted-foreground">({u.role})</span>
                                         </div>
                                     </SelectItem>
                                 ))}
@@ -207,72 +211,68 @@ export default function AttendancePage() {
 
             {selectedUser && (
                 <>
-                    {/* User Info & Stats Card */}
                     <Card className="shadow-sm">
                         <CardHeader className="pb-4">
                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                                {/* User Info */}
                                 <div className="flex items-center gap-4">
-                                    <Avatar className="h-16 w-16 border-4 border-white shadow-md">
+                                    <Avatar className="h-16 w-16 border-4 border-background shadow-md">
                                         <AvatarImage src={selectedUser.photoURL} alt={selectedUser.name} data-ai-hint="person" />
-                                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xl font-semibold">
+                                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xl font-semibold">
                                             {selectedUser.name.charAt(0).toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <h3 className="text-xl font-bold text-gray-900">{selectedUser.name}</h3>
-                                        <p className="text-gray-600 font-medium">{selectedUser.role}</p>
-                                        <p className="text-sm text-gray-500">{selectedUser.regions?.join(', ')}</p>
+                                        <h3 className="text-xl font-bold text-foreground">{selectedUser.name}</h3>
+                                        <p className="font-medium text-muted-foreground">{selectedUser.role}</p>
+                                        <p className="text-sm text-muted-foreground">{selectedUser.regions?.join(', ')}</p>
                                     </div>
                                 </div>
 
-                                {/* Stats */}
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center justify-center gap-6">
                                     <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{attendanceData.stats.presentDays}</div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-wide">Present</div>
+                                        <div className="text-2xl font-bold text-green-500">{attendanceData.stats.presentDays}</div>
+                                        <div className="text-xs text-muted-foreground uppercase tracking-wide">Present</div>
                                     </div>
                                     <div className="text-center">
                                         <div className="text-2xl font-bold text-red-500">{attendanceData.stats.absentDays}</div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-wide">Absent</div>
+                                        <div className="text-xs text-muted-foreground uppercase tracking-wide">Absent</div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="flex items-center gap-1">
-                                            <TrendingUp className="h-4 w-4 text-blue-500" />
-                                            <span className="text-2xl font-bold text-blue-600">{attendanceData.stats.attendanceRate}%</span>
+                                        <div className="flex items-center gap-1 text-primary">
+                                            <TrendingUp className="h-4 w-4" />
+                                            <span className="text-2xl font-bold">{attendanceData.stats.attendanceRate}%</span>
                                         </div>
-                                        <div className="text-xs text-gray-500 uppercase tracking-wide">Rate</div>
+                                        <div className="text-xs text-muted-foreground uppercase tracking-wide">Rate</div>
                                     </div>
                                 </div>
                             </div>
                         </CardHeader>
                     </Card>
 
-                    {/* Calendar Card */}
                     <Card className="shadow-sm">
                         <CardHeader className="pb-4">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-lg font-semibold text-gray-900">Monthly Overview</h4>
+                                <h4 className="text-lg font-semibold text-foreground">Monthly Overview</h4>
                                 <div className="flex items-center gap-2">
                                     <Button 
                                         variant="outline" 
-                                        size="sm" 
+                                        size="icon"
                                         onClick={goToPreviousMonth}
-                                        className="h-8 w-8 p-0"
+                                        className="h-8 w-8"
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </Button>
                                     <div className="min-w-[140px] text-center">
-                                        <span className="text-lg font-semibold text-gray-900">
+                                        <span className="text-lg font-semibold text-foreground">
                                             {format(currentMonth, 'MMMM yyyy')}
                                         </span>
                                     </div>
                                     <Button 
                                         variant="outline" 
-                                        size="sm" 
+                                        size="icon"
                                         onClick={goToNextMonth} 
                                         disabled={currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear()}
-                                        className="h-8 w-8 p-0"
+                                        className="h-8 w-8"
                                     >
                                         <ChevronRight className="h-4 w-4" />
                                     </Button>
@@ -284,63 +284,40 @@ export default function AttendancePage() {
                                 <Calendar
                                     month={currentMonth}
                                     onMonthChange={setCurrentMonth}
-                                    className="rounded-xl border border-gray-200 bg-white shadow-sm"
+                                    className="rounded-xl border"
                                     modifiers={{
                                         present: attendanceData.present,
                                         absent: attendanceData.absent,
                                         weekend: day => getDay(day) === 0 || getDay(day) === 6,
-                                        today: [new Date()],
+                                        today: new Date(),
                                     }}
                                     modifiersClassNames={{
-                                        present: "bg-green-500 text-white hover:bg-green-600 font-semibold shadow-sm border-green-600",
-                                        absent: "bg-red-500 text-white hover:bg-red-600 font-semibold shadow-sm border-red-600",
-                                        weekend: "bg-gray-100 text-gray-400 font-normal",
-                                        today: "ring-2 ring-blue-500 ring-offset-1 font-bold",
-                                    }}
-                                    classNames={{
-                                        months: "flex w-full",
-                                        month: "space-y-4 w-full",
-                                        caption: "flex justify-center pt-1 relative items-center px-4",
-                                        caption_label: "text-lg font-semibold text-gray-900",
-                                        nav: "space-x-1 flex items-center",
-                                        nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
-                                        nav_button_previous: "absolute left-2",
-                                        nav_button_next: "absolute right-2",
-                                        table: "w-full border-collapse space-y-1",
-                                        head_row: "flex w-full",
-                                        head_cell: "text-gray-500 rounded-md w-12 font-medium text-sm uppercase tracking-wide text-center py-2",
-                                        row: "flex w-full mt-2",
-                                        cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                                        day: "h-12 w-12 p-0 font-normal aria-selected:opacity-100 rounded-lg border-2 border-transparent transition-all duration-200 hover:bg-gray-100 flex items-center justify-center",
-                                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                                        day_today: "bg-accent text-accent-foreground",
-                                        day_outside: "text-gray-300 opacity-50",
-                                        day_disabled: "text-gray-300 opacity-50",
-                                        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
-                                        day_hidden: "invisible",
+                                        present: "bg-green-500 text-primary-foreground hover:bg-green-600 font-semibold",
+                                        absent: "bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold",
+                                        weekend: "text-muted-foreground opacity-50",
+                                        today: "bg-accent text-accent-foreground ring-2 ring-ring ring-offset-1",
                                     }}
                                     showOutsideDays={false}
                                     disabled
                                 />
                             </div>
                             
-                            {/* Legend */}
                             <div className="flex items-center justify-center gap-6 flex-wrap">
                                 <div className="flex items-center gap-2">
                                     <div className="h-4 w-4 rounded bg-green-500 shadow-sm"></div>
-                                    <span className="text-sm font-medium text-gray-700">Present</span>
+                                    <span className="text-sm font-medium text-muted-foreground">Present</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded bg-red-500 shadow-sm"></div>
-                                    <span className="text-sm font-medium text-gray-700">Absent</span>
+                                    <div className="h-4 w-4 rounded bg-destructive shadow-sm"></div>
+                                    <span className="text-sm font-medium text-muted-foreground">Absent</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded bg-gray-100 border border-gray-200"></div>
-                                    <span className="text-sm font-medium text-gray-700">Weekend</span>
+                                    <div className="h-4 w-4 rounded bg-muted border"></div>
+                                    <span className="text-sm font-medium text-muted-foreground">Weekend</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="h-4 w-4 rounded border-2 border-blue-500 bg-white"></div>
-                                    <span className="text-sm font-medium text-gray-700">Today</span>
+                                    <div className="h-4 w-4 rounded border-2 border-accent bg-background"></div>
+                                    <span className="text-sm font-medium text-muted-foreground">Today</span>
                                 </div>
                             </div>
                         </CardContent>
